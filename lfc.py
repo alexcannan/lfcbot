@@ -69,8 +69,10 @@ class PostDeduper:
 
 
 async def main():
+    print("lfcbot waking up")
     post_deduper = PostDeduper()
     fixtures = await get_fixtures(RAPID_API_TEAM_ID)
+    print(f"received {len(fixtures)} fixtures")
     # if any fixture is in the next 4 hours, make a post
     for fixture in fixtures:
         if fixture.fixture.date.replace(tzinfo=timezone.utc) \
@@ -86,22 +88,21 @@ async def main():
                 async with LemmyAuthWrapper() as lemmy:
                     _data = await publish_post(lemmy, post)
                 post_deduper.add_fixture(fixture.fixture.id)
-    # if it's monday and we haven't posted a discussion thread yet, make a post
-    if datetime.utcnow().weekday() == 0:
-        # get the date of the monday
-        monday = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=datetime.utcnow().weekday())
-        if not post_deduper.discussion_published(monday):
-            print(f"making discussion post for {monday}")
-            # make post
-            post = Post(
-                name=f"Weekly Discussion Thread - {monday.strftime('%b %d, %Y')}",
-                community_id=LFC_COMMUNITY_ID,
-                body="What's on your mind?",
-            )
-            async with LemmyAuthWrapper() as lemmy:
-                post_data = await publish_post(lemmy, post)
-                await pin_post(lemmy, post_data['post_view']['post']['id'])
-            post_deduper.add_discussion(monday)
+    # if we haven't posted monday's discussion thread yet, make a post
+    # get the date of the monday
+    monday = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=datetime.utcnow().weekday())
+    if not post_deduper.discussion_published(monday):
+        print(f"making discussion post for {monday}")
+        # make post
+        post = Post(
+            name=f"Weekly Discussion Thread - {monday.strftime('%b %d, %Y')}",
+            community_id=LFC_COMMUNITY_ID,
+        body="What's on your mind?",
+        )
+        async with LemmyAuthWrapper() as lemmy:
+            post_data = await publish_post(lemmy, post)
+            await pin_post(lemmy, post_data['post_view']['post']['id'])
+        post_deduper.add_discussion(monday)
 
 
 asyncio.run(main())
