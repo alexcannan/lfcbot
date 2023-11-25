@@ -8,7 +8,7 @@ import os
 from aiohttp import ClientSession
 
 
-LEMMY_API_ROOT = "https://programming.dev/api/v3"  # change this to whatever lemmy instance your account is on
+LEMMY_API_ROOT = os.environ["LEMMY_API_ROOT"]
 LEMMY_USERNAME = os.environ["LEMMY_USERNAME"]
 LEMMY_PASSWORD = os.environ["LEMMY_PASSWORD"]
 
