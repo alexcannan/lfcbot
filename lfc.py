@@ -86,7 +86,7 @@ async def main():
             post = Post(
                 name=fixture.format_title(),
                 community_id=LFC_COMMUNITY_ID,
-                body=fixture.format_body(),
+                body=fixture.format_body()+"\n\n~posted~ ~by~ ~lfcbot~",
             )
             if not post_deduper.fixture_published(fixture.fixture.id):
                 async with LemmyAuthWrapper() as lemmy:
@@ -101,7 +101,7 @@ async def main():
         post = Post(
             name=f"Weekly Discussion Thread - {monday.strftime('%b %d, %Y')}",
             community_id=LFC_COMMUNITY_ID,
-        body="What's on your mind?",
+        body="What's on your mind?\n\n~posted~ ~by~ ~lfcbot~",
         )
         async with LemmyAuthWrapper() as lemmy:
             post_data = await publish_post(lemmy, post)
