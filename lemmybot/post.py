@@ -52,8 +52,28 @@ async def pin_post(law: LemmyAuthWrapper, post_id: int, featured: bool=True):
         return await resp.json()
 
 
+async def get_new_posts(law: LemmyAuthWrapper, community_id: int, limit: int=25):
+    """
+    get newest posts from community. pinned discussions should appear at the top
+    """
+    url = "https://programming.dev/api/v3/post/list"
+    headers = {
+        "accept": "application/json",
+        "authorization": f"Bearer {law.token}"
+    }
+    params = {
+        "sort": "New",
+        "limit": limit,
+        "community_id": community_id,
+    }
+    async with law.session.get(url, headers=headers, params=params) as resp:
+        resp.raise_for_status()
+        return await resp.json()
+
+
 if __name__ == "__main__":
     async def main():
         async with LemmyAuthWrapper() as law:
-            print(await pin_post(law, 6388578))
+            # print(await pin_post(law, 6388578))
+            posts = await get_new_posts(law, 11742)
     asyncio.run(main())

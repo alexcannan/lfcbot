@@ -17,7 +17,7 @@ from aiohttp import ClientSession
 from pydantic import BaseModel
 
 from lemmybot import LemmyAuthWrapper
-from lemmybot.post import Post, publish_post, pin_post, unpin_posts
+from lemmybot.post import Post, publish_post, pin_post, get_new_posts
 from rapidapi import get_fixtures
 
 
@@ -55,20 +55,20 @@ class PostDeduper:
         return f"fixture-{fixtureid}"
 
     def discussion_key(self, date: datetime):
-        return date.strftime(self.dtstr)
+        return f"discussion-{date.strftime(self.dtstr)}"
 
     def fixture_published(self, fixtureid: int):
         return self.fixture_key(fixtureid) in self.posted
 
-    def discussion_published(self, postid: int):
-        return f"discussion-{postid}" in self.posted
+    def discussion_published(self, date: datetime):
+        return self.discussion_key(date) in self.posted
 
     def add_fixture(self, fixtureid: int):
         self.posted.add(self.fixture_key(fixtureid))
         self._save()
 
-    def add_discussion(self, postid: int):
-        self.posted.add(self.discussion_key(postid))
+    def add_discussion(self, date: datetime):
+        self.posted.add(self.discussion_key(date))
         self._save()
 
 
@@ -97,18 +97,29 @@ async def main():
     monday = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=datetime.utcnow().weekday())
     if not post_deduper.discussion_published(monday):
         print(f"making discussion post for {monday}")
+        discussion_title = "Weekly Discussion Thread"
         # make post
         post = Post(
-            name=f"Weekly Discussion Thread - {monday.strftime('%b %d, %Y')}",
+            name=f"{discussion_title} - {monday.strftime('%b %d, %Y')}",
             community_id=LFC_COMMUNITY_ID,
         body="What's on your mind?\n\n~posted~ ~by~ ~lfcbot~",
         )
         async with LemmyAuthWrapper() as lemmy:
+            # unpin old discussion post(s)
+            posts_response = await get_new_posts(lemmy, LFC_COMMUNITY_ID)
+            for post_obj in posts_response['posts']:
+                post_name: str = post_obj['post']['name']
+                creator_name: str = post_obj['creator']['name']
+                post_id = int(post_obj['post']['id'])
+                is_discussion = post_name.startswith(discussion_title)
+                is_from_bot = creator_name == lemmy.username
+                if is_discussion and is_from_bot:
+                    await pin_post(lemmy, int(post_obj['post']['id']), False)
+            # post and pin new discussion post
             post_data = await publish_post(lemmy, post)
             post_id = int(post_data['post_view']['post']['id'])
-            await asyncio.gather(*[pin_post(lemmy, post_id, False) for post_id in post_deduper.discussion_ids])  # ensure all previous discussion posts are unpinned
             await pin_post(lemmy, post_id, True)
-        post_deduper.add_discussion(post_id)
+        post_deduper.add_discussion(monday)
 
 
 asyncio.run(main())
