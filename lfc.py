@@ -17,7 +17,7 @@ from aiohttp import ClientSession
 from pydantic import BaseModel
 
 from lemmybot import LemmyAuthWrapper
-from lemmybot.post import Post, publish_post, pin_post
+from lemmybot.post import Post, publish_post, pin_post, unpin_posts
 from rapidapi import get_fixtures
 
 
@@ -47,6 +47,10 @@ class PostDeduper:
         with open(self.filename, "w") as f:
             f.write("\n".join(self.posted))
 
+    @property
+    def discussion_ids(self) -> list[int]:
+        return [int(key.split("-")[1]) for key in self.posted if key.startswith("discussion")]
+
     def fixture_key(self, fixtureid: int):
         return f"fixture-{fixtureid}"
 
@@ -56,15 +60,15 @@ class PostDeduper:
     def fixture_published(self, fixtureid: int):
         return self.fixture_key(fixtureid) in self.posted
 
-    def discussion_published(self, date: datetime):
-        return self.discussion_key(date) in self.posted
+    def discussion_published(self, postid: int):
+        return f"discussion-{postid}" in self.posted
 
     def add_fixture(self, fixtureid: int):
         self.posted.add(self.fixture_key(fixtureid))
         self._save()
 
-    def add_discussion(self, date: datetime):
-        self.posted.add(self.discussion_key(date))
+    def add_discussion(self, postid: int):
+        self.posted.add(self.discussion_key(postid))
         self._save()
 
 
@@ -101,8 +105,10 @@ async def main():
         )
         async with LemmyAuthWrapper() as lemmy:
             post_data = await publish_post(lemmy, post)
-            await pin_post(lemmy, post_data['post_view']['post']['id'])
-        post_deduper.add_discussion(monday)
+            post_id = int(post_data['post_view']['post']['id'])
+            await asyncio.gather(*[pin_post(lemmy, post_id, False) for post_id in post_deduper.discussion_ids])  # ensure all previous discussion posts are unpinned
+            await pin_post(lemmy, post_id, True)
+        post_deduper.add_discussion(post_id)
 
 
 asyncio.run(main())

@@ -2,6 +2,8 @@
 module that posts to lemmy using their api
 """
 
+import asyncio
+
 from pydantic import BaseModel
 
 from lemmybot import LemmyAuthWrapper, LEMMY_API_ROOT
@@ -30,7 +32,7 @@ async def publish_post(law: LemmyAuthWrapper, post: Post):
         return await resp.json()
 
 
-async def pin_post(law: LemmyAuthWrapper, post_id: int):
+async def pin_post(law: LemmyAuthWrapper, post_id: int, featured: bool=True):
     """
     pin a post to lemmy
     """
@@ -42,17 +44,15 @@ async def pin_post(law: LemmyAuthWrapper, post_id: int):
     }
     payload = {
         "post_id": post_id,
-        "featured": True,
+        "featured": featured,
         "feature_type": "Community",
         "auth": law.token,
     }
     async with law.session.post(url, json=payload, headers=headers) as resp:
-        print(resp.status, await resp.text())
         return await resp.json()
 
 
 if __name__ == "__main__":
-    import asyncio
     async def main():
         async with LemmyAuthWrapper() as law:
             print(await pin_post(law, 6388578))
