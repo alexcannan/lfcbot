@@ -47,10 +47,6 @@ class PostDeduper:
         with open(self.filename, "w") as f:
             f.write("\n".join(self.posted))
 
-    @property
-    def discussion_ids(self) -> list[int]:
-        return [int(key.split("-")[1]) for key in self.posted if key.startswith("discussion")]
-
     def fixture_key(self, fixtureid: int):
         return f"fixture-{fixtureid}"
 
