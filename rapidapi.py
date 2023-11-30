@@ -73,7 +73,7 @@ class FixtureResponse(BaseModel):
             f"Date: {self.fixture.date.strftime('%b %d, %Y')}",
             f"Kickoff time: {self.fixture.date.strftime('%H:%M %Z')}",
         ]
-        return "\n".join([line for line in lines if line])
+        return "\n\n".join([line for line in lines if line])
 
 
 async def get_fixtures(team_id: int) -> list[FixtureResponse]:
