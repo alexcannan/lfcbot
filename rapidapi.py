@@ -108,18 +108,18 @@ def format_form(fixtures: list[FixtureResponse], team_id: int) -> str:
         if fixture.fixture.status.short == "FT":
             if fixture.teams.home.id == team_id:
                 if fixture.teams.home.winner:
-                    form.append(f"W [{fixture.goals.home}-{fixture.goals.away}] vs {fixture.teams.away.name}")
+                    form.append(f"W 🟢 [{fixture.goals.home}-{fixture.goals.away}] vs {fixture.teams.away.name}")
                 elif fixture.teams.away.winner:
-                    form.append(f"L [{fixture.goals.home}-{fixture.goals.away}] vs {fixture.teams.away.name}")
+                    form.append(f"L 🔴 [{fixture.goals.home}-{fixture.goals.away}] vs {fixture.teams.away.name}")
                 else:
-                    form.append(f"D [{fixture.goals.home}-{fixture.goals.away}] vs {fixture.teams.away.name}")
+                    form.append(f"D 🟡 [{fixture.goals.home}-{fixture.goals.away}] vs {fixture.teams.away.name}")
             elif fixture.teams.away.id == team_id:
                 if fixture.teams.away.winner:
-                    form.append(f"W [{fixture.goals.away}-{fixture.goals.home}] at {fixture.teams.home.name}")
+                    form.append(f"W 🟢 [{fixture.goals.away}-{fixture.goals.home}] at {fixture.teams.home.name}")
                 elif fixture.teams.home.winner:
-                    form.append(f"L [{fixture.goals.away}-{fixture.goals.home}] at {fixture.teams.home.name}")
+                    form.append(f"L 🔴 [{fixture.goals.away}-{fixture.goals.home}] at {fixture.teams.home.name}")
                 else:
-                    form.append(f"D [{fixture.goals.away}-{fixture.goals.home}] at {fixture.teams.home.name}")
+                    form.append(f"D 🟡 [{fixture.goals.away}-{fixture.goals.home}] at {fixture.teams.home.name}")
     form.append("```")
     return "\n".join(form)
 
