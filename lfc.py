@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from lemmybot import LemmyAuthWrapper
 from lemmybot.post import Post, publish_post, pin_post, get_new_posts
-from rapidapi import get_fixtures
+from rapidapi import get_next_fixtures, get_previous_fixtures, format_form
 
 
 LFC_COMMUNITY_ID = 11742  # https://programming.dev/c/liverpoolfc@lemmy.world
@@ -71,20 +71,30 @@ class PostDeduper:
 async def main():
     print("lfcbot waking up")
     post_deduper = PostDeduper()
-    fixtures = await get_fixtures(RAPID_API_TEAM_ID)
+    fixtures = await get_next_fixtures(RAPID_API_TEAM_ID)
     print(f"received {len(fixtures)} fixtures")
     # if any fixture is in the next 4 hours, make a post
     for fixture in fixtures:
         if fixture.fixture.date.replace(tzinfo=timezone.utc) \
            < datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(hours=4):
             print(f"making post for {fixture}")
-            # make post
-            post = Post(
-                name=fixture.format_title(),
-                community_id=LFC_COMMUNITY_ID,
-                body=fixture.format_body()+"\n\n~posted~ ~by~ ~lfcbot~",
-            )
             if not post_deduper.fixture_published(fixture.fixture.id):
+                # get form of teams
+                home_team_form: str | None = None
+                away_team_form: str | None = None
+                try:
+                    home_previous_fixtures = await get_previous_fixtures(fixture.teams.home.id)
+                    home_team_form = format_form(home_previous_fixtures, fixture.teams.home.id)
+                    away_previous_fixtures = await get_previous_fixtures(fixture.teams.away.id)
+                    away_team_form = format_form(away_previous_fixtures, fixture.teams.away.id)
+                except Exception as e:
+                    print(f"error getting form: [{e.__class__.__name__}] {e}")
+                # make post
+                post = Post(
+                    name=fixture.format_title(),
+                    community_id=LFC_COMMUNITY_ID,
+                    body=fixture.format_body(home_team_form, away_team_form)+"\n\n~posted~ ~by~ ~lfcbot~",
+                )
                 async with LemmyAuthWrapper() as lemmy:
                     _data = await publish_post(lemmy, post)
                 post_deduper.add_fixture(fixture.fixture.id)
