@@ -77,8 +77,8 @@ async def main():
     for fixture in fixtures:
         if fixture.fixture.date.replace(tzinfo=timezone.utc) \
            < datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(hours=4):
-            print(f"making post for {fixture}")
             if not post_deduper.fixture_published(fixture.fixture.id):
+                print(f"making post for {fixture=}")
                 # get form of teams
                 home_team_form: str | None = None
                 away_team_form: str | None = None

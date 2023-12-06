@@ -104,7 +104,8 @@ def format_form(fixtures: list[FixtureResponse], team_id: int) -> str:
     ```
     """
     form = ["```"]
-    for fixture in fixtures:
+    # fixtures come most recent first, reverse so it's chronological
+    for fixture in reversed(fixtures):
         if fixture.fixture.status.short == "FT":
             if fixture.teams.home.id == team_id:
                 if fixture.teams.home.winner:
