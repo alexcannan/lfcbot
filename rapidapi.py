@@ -5,7 +5,7 @@ we use the rapidapi football api to get the fixtures for the next 5 games
 from datetime import datetime
 import json
 import os
-from typing import Optional
+from typing import Optional, Union
 
 from aiohttp import ClientSession
 from pydantic import BaseModel, HttpUrl, NaiveDatetime
@@ -70,7 +70,7 @@ class FixtureResponse(BaseModel):
     def format_title(self) -> str:
         return f"[Match Thread] {self.teams.home.name} vs {self.teams.away.name} | {self.league.name} {self.league.round} | {self.fixture.date.strftime('%b %d, %Y')}"
 
-    def format_body(self, home_team_form: str | None, away_team_form: str | None) -> str:
+    def format_body(self, home_team_form: Union[str, None], away_team_form: Union[str, None]) -> str:
         lines = [
             f"*** {self.league.name} {self.league.round} ***",
             f"Referee: {self.fixture.referee}" if self.fixture.referee else "",
@@ -103,7 +103,7 @@ def format_form(fixtures: list[FixtureResponse], team_id: int) -> str:
     L [0-1] vs Arsenal
     ```
     """
-    form = []
+    form = ["```"]
     for fixture in fixtures:
         if fixture.fixture.status.short == "FT":
             if fixture.teams.home.id == team_id:
@@ -120,6 +120,7 @@ def format_form(fixtures: list[FixtureResponse], team_id: int) -> str:
                     form.append(f"L [{fixture.goals.away}-{fixture.goals.home}] at {fixture.teams.home.name}")
                 else:
                     form.append(f"D [{fixture.goals.away}-{fixture.goals.home}] at {fixture.teams.home.name}")
+    form.append("```")
     return "\n".join(form)
 
 
