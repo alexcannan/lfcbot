@@ -5,7 +5,7 @@ we use the rapidapi football api to get the fixtures for the next 5 games
 from datetime import datetime
 import json
 import os
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 from aiohttp import ClientSession
 from pydantic import BaseModel, HttpUrl, NaiveDatetime
@@ -70,15 +70,24 @@ class FixtureResponse(BaseModel):
     def format_title(self) -> str:
         return f"[Match Thread] {self.teams.home.name} vs {self.teams.away.name} | {self.league.name} {self.league.round} | {self.fixture.date.strftime('%b %d, %Y')}"
 
-    def format_body(self, home_team_form: Union[str, None], away_team_form: Union[str, None]) -> str:
+    def format_body(self,
+                    home_team_form: Union[str, None],
+                    away_team_form: Union[str, None],
+                    lineup: Union[str, None],
+                    ) -> str:
+        """ formats match thread post body, given optional auxiliary information """
         lines = [
-            f"*** {self.league.name} {self.league.round} ***",
+            "## Match Info",
+            f"Round: {self.league.name} {self.league.round}",
             f"Referee: {self.fixture.referee}" if self.fixture.referee else "",
             f"Ground: {self.fixture.venue.name}, {self.fixture.venue.city}",
             f"Date: {self.fixture.date.strftime('%b %d, %Y')}",
             f"Kickoff time: {self.fixture.date.strftime('%H:%M %Z')}",
-            f"{self.teams.home.name} recent form:\n{home_team_form}" if home_team_form else "",
-            f"{self.teams.away.name} recent form:\n{away_team_form}" if away_team_form else "",
+            "## Lineups",
+            "Check back 30m before kickoff" if not lineup else lineup,
+            "## Recent Form",
+            f"#### {self.teams.home.name}\n\n{home_team_form}" if home_team_form else "",
+            f"#### {self.teams.away.name}\n\n{away_team_form}" if away_team_form else "",
         ]
         return "\n\n".join([line for line in lines if line])
 
@@ -92,7 +101,37 @@ class FixtureResponse(BaseModel):
         return None
 
 
-def format_form(fixtures: list[FixtureResponse], team_id: int) -> str:
+class Player(BaseModel):
+    id: int
+    name: str
+    number: int
+    pos: Optional[str]
+    grid: Optional[str]
+
+
+class Squad(BaseModel):
+    player: Player
+
+
+class Coach(BaseModel):
+    id: int
+    name: str
+    photo: Optional[str]
+
+
+class Lineup(BaseModel):
+    team: Team
+    coach: Coach
+    formation: str
+    startXI: List[Squad]
+    substitutes: List[Squad]
+
+
+class LineupResponse(BaseModel):
+    response: List[Lineup]
+
+
+def format_form(fixtures: List[FixtureResponse], team_id: int) -> str:
     """
     formats a list of fixtures into a form string for a specific team
 
@@ -125,7 +164,7 @@ def format_form(fixtures: list[FixtureResponse], team_id: int) -> str:
     return "\n".join(form)
 
 
-async def get_previous_fixtures(team_id: int) -> list[FixtureResponse]:
+async def get_previous_fixtures(team_id: int) -> List[FixtureResponse]:
     async with ClientSession() as session:
         url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
         querystring = {"team": team_id, "last": "8"}
@@ -142,7 +181,7 @@ async def get_previous_fixtures(team_id: int) -> list[FixtureResponse]:
     return [FixtureResponse(**match) for match in data["response"]]
 
 
-async def get_next_fixtures(team_id: int) -> list[FixtureResponse]:
+async def get_next_fixtures(team_id: int) -> List[FixtureResponse]:
     async with ClientSession() as session:
         url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
         querystring = {"team": team_id, "next": "3"}
@@ -157,3 +196,11 @@ async def get_next_fixtures(team_id: int) -> list[FixtureResponse]:
             data = await resp.json()
 
     return [FixtureResponse(**match) for match in data["response"]]
+
+
+if __name__ == "__main__":
+    async def main():
+        with open("lineup.json", "r") as f:
+            lineup = LineupResponse.model_validate_json(f.read())
+    import asyncio
+    asyncio.run(main())

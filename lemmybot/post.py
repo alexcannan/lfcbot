@@ -3,7 +3,7 @@ module that posts to lemmy using their api
 """
 
 import asyncio
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel
 
@@ -27,7 +27,16 @@ class PostResponse(BaseModel):
 
 
 class PostListResponse(BaseModel):
-    posts: list[PostView]
+    posts: List[PostView]
+
+
+class PostEdit(BaseModel):
+    post_id: int
+    name: Optional[str] = None
+    url: Optional[str] = None
+    body: Optional[str] = None
+    nsfw: Optional[bool] = None
+    language_id: Optional[int] = None
 
 
 async def publish_post(law: LemmyAuthWrapper, post: Post) -> PostResponse:
@@ -45,6 +54,23 @@ async def publish_post(law: LemmyAuthWrapper, post: Post) -> PostResponse:
     payload = post.model_dump()
     payload["auth"] = law.token  # not sure why this is necessary but it is (redundant?)
     async with law.session.post(url, json=payload, headers=headers) as resp:
+        return PostResponse.model_validate(await resp.json())
+
+
+async def edit_post(law: LemmyAuthWrapper, post_edit: PostEdit) -> PostResponse:
+    """
+    update a post on lemmy
+    """
+    url = f"{LEMMY_API_ROOT}/post"
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": f"Bearer {law.token}",
+    }
+    payload = post_edit.model_dump()
+    payload["auth"] = law.token
+    async with law.session.put(url, json=payload, headers=headers) as resp:
+        resp.raise_for_status()
         return PostResponse.model_validate(await resp.json())
 
 
