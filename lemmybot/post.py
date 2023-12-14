@@ -3,6 +3,7 @@ module that posts to lemmy using their api
 """
 
 import asyncio
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -10,16 +11,31 @@ from lemmybot import LemmyAuthWrapper, LEMMY_API_ROOT
 
 
 class Post(BaseModel):
+    id: int
     name: str
     community_id: int
-    body: str
+    body: Optional[str] = None
     nsfw: bool = False
 
 
-async def publish_post(law: LemmyAuthWrapper, post: Post):
+class PostView(BaseModel):
+    post: Post
+
+
+class PostResponse(BaseModel):
+    post_view: PostView
+
+
+class PostListResponse(BaseModel):
+    posts: list[PostView]
+
+
+async def publish_post(law: LemmyAuthWrapper, post: Post) -> PostResponse:
     """
     publish a post to lemmy
     """
+    if not post.body:
+        raise ValueError("post must have a body")
     url = f"{LEMMY_API_ROOT}/post"
     headers = {
         "accept": "application/json",
@@ -29,10 +45,10 @@ async def publish_post(law: LemmyAuthWrapper, post: Post):
     payload = post.model_dump()
     payload["auth"] = law.token  # not sure why this is necessary but it is (redundant?)
     async with law.session.post(url, json=payload, headers=headers) as resp:
-        return await resp.json()
+        return PostResponse.model_validate(await resp.json())
 
 
-async def pin_post(law: LemmyAuthWrapper, post_id: int, featured: bool=True):
+async def pin_post(law: LemmyAuthWrapper, post_id: int, featured: bool=True) -> PostResponse:
     """
     pin a post to lemmy
     """
@@ -49,14 +65,14 @@ async def pin_post(law: LemmyAuthWrapper, post_id: int, featured: bool=True):
         "auth": law.token,
     }
     async with law.session.post(url, json=payload, headers=headers) as resp:
-        return await resp.json()
+        return PostResponse.model_validate(await resp.json())
 
 
-async def get_new_posts(law: LemmyAuthWrapper, community_id: int, limit: int=25):
+async def get_new_posts(law: LemmyAuthWrapper, community_id: int, limit: int=25) -> PostListResponse:
     """
     get newest posts from community. pinned discussions should appear at the top
     """
-    url = "https://programming.dev/api/v3/post/list"
+    url = f"{LEMMY_API_ROOT}/post/list"
     headers = {
         "accept": "application/json",
         "authorization": f"Bearer {law.token}"
@@ -68,12 +84,13 @@ async def get_new_posts(law: LemmyAuthWrapper, community_id: int, limit: int=25)
     }
     async with law.session.get(url, headers=headers, params=params) as resp:
         resp.raise_for_status()
-        return await resp.json()
+        return PostListResponse.model_validate(await resp.json())
 
 
 if __name__ == "__main__":
     async def main():
         async with LemmyAuthWrapper() as law:
             # print(await pin_post(law, 6388578))
-            posts = await get_new_posts(law, 11742)
+            post_list_response = await get_new_posts(law, 11742)
+            print(post_list_response.posts[-1].model_dump())
     asyncio.run(main())

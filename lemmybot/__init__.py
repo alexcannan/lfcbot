@@ -23,7 +23,7 @@ class LemmyAuthWrapper:
         return self
 
     async def __aexit__(self, *args, **kwargs):
-        self.token = hashlib.sha256().hexdigest()
+        self.token = hashlib.sha256().hexdigest()  # scramble the token
         await self.session.__aexit__(*args, **kwargs)
 
     async def _login(self, username: str, password: str):
