@@ -3,15 +3,14 @@ we use the rapidapi football api to get the fixtures for the next 5 games
 """
 
 from datetime import datetime
-import json
 import os
 from typing import Optional, Union, List
 
 from aiohttp import ClientSession
-from pydantic import BaseModel, HttpUrl, NaiveDatetime
+from pydantic import BaseModel, HttpUrl
 
 
-RADID_API_KEY = os.environ["RAPID_API_KEY"]
+RAPID_API_KEY = os.environ["RAPID_API_KEY"]
 
 
 class Status(BaseModel):
@@ -108,6 +107,14 @@ class Player(BaseModel):
     pos: Optional[str]
     grid: Optional[str]
 
+    @property
+    def grid_row(self) -> int:
+        return int(self.grid.split(":")[0])
+
+    @property
+    def grid_col(self) -> int:
+        return int(self.grid.split(":")[1])
+
 
 class Squad(BaseModel):
     player: Player
@@ -126,9 +133,29 @@ class Lineup(BaseModel):
     startXI: List[Squad]
     substitutes: List[Squad]
 
+    def format_lineup(self) -> str:
+        """ formats lineup into a string """
+        starting_strs: List[str] = []
+        for grid_row in sorted(list(set([squad.player.grid_row for squad in self.startXI])), reverse=True):
+            players = [squad.player for squad in self.startXI if squad.player.grid_row == grid_row]
+            players.sort(key=lambda player: player.grid_col)
+            starting_strs.append(",  ".join([f"{player.name}" for player in players]) + ";")
+        max_length = max(len(line) for line in starting_strs)
+        starting_strs = [line.center(max_length) for line in starting_strs]
+        starting_str = "\n\n".join(starting_strs)
+        bench_str = "Bench: " + ", ".join([f"{squad.player.name}" for squad in self.substitutes])
+        return "\n\n".join([starting_str, bench_str])
+
 
 class LineupResponse(BaseModel):
     response: List[Lineup]
+
+    def get_team_lineup(self, team_id: int) -> Lineup:
+        """ get the lineup for a specific team """
+        for lineup in self.response:
+            if lineup.team.id == team_id:
+                return lineup
+        raise ValueError(f"no lineup for team {team_id}")
 
 
 def format_form(fixtures: List[FixtureResponse], team_id: int) -> str:
@@ -170,7 +197,7 @@ async def get_previous_fixtures(team_id: int) -> List[FixtureResponse]:
         querystring = {"team": team_id, "last": "8"}
 
         headers = {
-            "X-RapidAPI-Key": RADID_API_KEY,
+            "X-RapidAPI-Key": RAPID_API_KEY,
             "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
         }
 
@@ -187,7 +214,7 @@ async def get_next_fixtures(team_id: int) -> List[FixtureResponse]:
         querystring = {"team": team_id, "next": "3"}
 
         headers = {
-            "X-RapidAPI-Key": RADID_API_KEY,
+            "X-RapidAPI-Key": RAPID_API_KEY,
             "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
         }
 
@@ -198,9 +225,27 @@ async def get_next_fixtures(team_id: int) -> List[FixtureResponse]:
     return [FixtureResponse(**match) for match in data["response"]]
 
 
+async def get_lineups(fixture_id: int) -> LineupResponse:
+    async with ClientSession() as session:
+        url = "https://api-football-v1.p.rapidapi.com/v3/fixtures/lineups"
+        querystring = {"fixture": fixture_id}
+
+        headers = {
+            "X-RapidAPI-Key": RAPID_API_KEY,
+            "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+        }
+        async with session.get(url, headers=headers, params=querystring) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+
+    return LineupResponse.model_validate(data)
+
+
 if __name__ == "__main__":
     async def main():
-        with open("lineup.json", "r") as f:
-            lineup = LineupResponse.model_validate_json(f.read())
+        with open("lfclineup.json", "r") as f:
+            _lineup = LineupResponse.model_validate_json(f.read())
+        # lineup = await get_lineup(1126416)
+        # import pdb; pdb.set_trace()
     import asyncio
     asyncio.run(main())

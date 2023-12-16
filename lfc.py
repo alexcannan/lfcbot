@@ -9,20 +9,23 @@ should automatically post the following:
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-import json
-import os
 from pathlib import Path
+from typing import List, Optional
 
-from aiohttp import ClientSession
 from pydantic import BaseModel
 
 from lemmybot import LemmyAuthWrapper
-from lemmybot.post import Post, publish_post, pin_post, get_new_posts
-from rapidapi import get_next_fixtures, get_previous_fixtures, format_form
+from lemmybot.post import Post, PostEdit, PostResponse, edit_post, publish_post, pin_post, get_new_posts
+from rapidapi import FixtureResponse, get_lineups, get_next_fixtures, get_previous_fixtures, format_form
 
 
 LFC_COMMUNITY_ID = 11742  # https://programming.dev/c/liverpoolfc@lemmy.world
 RAPID_API_TEAM_ID = 40
+
+
+class FixtureCache(BaseModel):
+    fixtures: List[FixtureResponse]
+    date_fetched: datetime
 
 
 class PostDeduper:
@@ -71,8 +74,21 @@ class PostDeduper:
 async def main():
     print("lfcbot waking up")
     post_deduper = PostDeduper()
-    fixtures = await get_next_fixtures(RAPID_API_TEAM_ID)
-    print(f"received {len(fixtures)} fixtures")
+
+    fixtures_from_today = Path("fixtures_from_today.json")
+    if fixtures_from_today.exists():
+        fixtures = FixtureCache.model_validate_strings(fixtures_from_today.read_text())
+        if fixtures.date_fetched.date() != datetime.utcnow().date():
+            print("fixture cache out of date, fetching new ones")
+            fixtures = await get_next_fixtures(RAPID_API_TEAM_ID)
+            fixture_cache = FixtureCache(fixtures=fixtures, date_fetched=datetime.utcnow())
+            fixtures_from_today.write_text(fixture_cache.model_dump_json())
+    else:
+        fixtures = await get_next_fixtures(RAPID_API_TEAM_ID)
+        fixture_cache = FixtureCache(fixtures=fixtures, date_fetched=datetime.utcnow())
+        fixtures_from_today.write_text(fixture_cache.model_dump_json())
+
+    lineup_task: Optional[asyncio.Task] = None
     # if any fixture is in the next 4 hours, make a post
     for fixture in fixtures:
         if fixture.fixture.date.replace(tzinfo=timezone.utc) \
@@ -93,13 +109,29 @@ async def main():
                 post = Post(
                     name=fixture.format_title(),
                     community_id=LFC_COMMUNITY_ID,
-                    body=fixture.format_body(home_team_form, away_team_form)+"\n\n~posted~ ~by~ ~lfcbot~",
+                    body=fixture.format_body(home_team_form, away_team_form, lineup=None)+"\n\n~posted~ ~by~ ~lfcbot~",
                 )
                 async with LemmyAuthWrapper() as lemmy:
-                    _data = await publish_post(lemmy, post)
+                    post_response: PostResponse = await publish_post(lemmy, post)
                 post_deduper.add_fixture(fixture.fixture.id)
+                # spawn task to update post with lineups 30m before kickoff
+                kickoff = fixture.fixture.date.replace(tzinfo=timezone.utc)
+                async def update_task():
+                    await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - 30*60)  # wait until 30m before kickoff
+                    lineup_response = await get_lineups(fixture.fixture.id)
+                    lfc_lineup = lineup_response.get_team_lineup(RAPID_API_TEAM_ID)
+                    async with LemmyAuthWrapper() as lemmy:
+                        post_edit = PostEdit(
+                            post_id=post_response.post_view.post.id,
+                            body=fixture.format_body(
+                                home_team_form,
+                                away_team_form,
+                                lfc_lineup.format_lineup()
+                            )+"\n\n~posted~ ~by~ ~lfcbot~"
+                        )
+                        await edit_post(lemmy, post_edit)
+                lineup_task = asyncio.create_task(update_task())
     # if we haven't posted monday's discussion thread yet, make a post
-    # get the date of the monday
     monday = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=datetime.utcnow().weekday())
     if not post_deduper.discussion_published(monday):
         print(f"making discussion post for {monday}")
@@ -126,6 +158,9 @@ async def main():
             post_id = int(post_data['post_view']['post']['id'])
             await pin_post(lemmy, post_id, True)
         post_deduper.add_discussion(monday)
+    if lineup_task is not None:
+        await lineup_task
+    print("lfcbot going to sleep")
 
 
 if __name__ == "__main__":
