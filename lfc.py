@@ -77,8 +77,9 @@ async def main():
 
     fixtures_from_today = Path("fixtures_from_today.json")
     if fixtures_from_today.exists():
-        fixtures = FixtureCache.model_validate_strings(fixtures_from_today.read_text())
-        if fixtures.date_fetched.date() != datetime.utcnow().date():
+        fixture_cache = FixtureCache.model_validate_json(fixtures_from_today.read_text())
+        fixtures = fixture_cache.fixtures
+        if fixture_cache.date_fetched.date() != datetime.utcnow().date():
             print("fixture cache out of date, fetching new ones")
             fixtures = await get_next_fixtures(RAPID_API_TEAM_ID)
             fixture_cache = FixtureCache(fixtures=fixtures, date_fetched=datetime.utcnow())

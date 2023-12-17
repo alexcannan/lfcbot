@@ -11,7 +11,7 @@ from lemmybot import LemmyAuthWrapper, LEMMY_API_ROOT
 
 
 class Post(BaseModel):
-    id: int
+    id: Optional[int] = None
     name: str
     community_id: int
     body: Optional[str] = None
