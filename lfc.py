@@ -146,18 +146,14 @@ async def main():
         async with LemmyAuthWrapper() as lemmy:
             # unpin old discussion post(s)
             posts_response = await get_new_posts(lemmy, LFC_COMMUNITY_ID)
-            for post_obj in posts_response['posts']:
-                post_name: str = post_obj['post']['name']
-                creator_name: str = post_obj['creator']['name']
-                post_id = int(post_obj['post']['id'])
-                is_discussion = post_name.startswith(discussion_title)
-                is_from_bot = creator_name == lemmy.username
+            for post_obj in posts_response.posts:
+                is_discussion = post_obj.post.name.startswith(discussion_title)
+                is_from_bot = post_obj.creator.name == lemmy.username
                 if is_discussion and is_from_bot:
-                    await pin_post(lemmy, int(post_obj['post']['id']), False)
+                    await pin_post(lemmy, post_obj.post.id, False)
             # post and pin new discussion post
             post_data = await publish_post(lemmy, post)
-            post_id = int(post_data['post_view']['post']['id'])
-            await pin_post(lemmy, post_id, True)
+            await pin_post(lemmy, post_data.post_view.post.id, True)
         post_deduper.add_discussion(monday)
     if lineup_task is not None:
         await lineup_task

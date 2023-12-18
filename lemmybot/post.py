@@ -18,8 +18,14 @@ class Post(BaseModel):
     nsfw: bool = False
 
 
+class Creator(BaseModel):
+    id: int
+    name: str
+
+
 class PostView(BaseModel):
     post: Post
+    creator: Creator
 
 
 class PostResponse(BaseModel):
