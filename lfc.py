@@ -89,7 +89,7 @@ async def main():
         fixture_cache = FixtureCache(fixtures=fixtures, date_fetched=datetime.utcnow())
         fixtures_from_today.write_text(fixture_cache.model_dump_json())
 
-    lineup_task: Optional[asyncio.Task] = None
+    lineup_tasks: List[asyncio.Task] = []
     # if any fixture is in the next 4 hours, make a post
     for fixture in fixtures:
         if fixture.fixture.date.replace(tzinfo=timezone.utc) \
@@ -132,7 +132,7 @@ async def main():
                             )+"\n\n~posted~ ~by~ ~lfcbot~"
                         )
                         await edit_post(lemmy, post_edit)
-                lineup_task = asyncio.create_task(update_task())
+                lineup_tasks.append(asyncio.create_task(update_task()))
     # if we haven't posted monday's discussion thread yet, make a post
     monday = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=datetime.utcnow().weekday())
     if not post_deduper.discussion_published(monday):
@@ -156,9 +156,9 @@ async def main():
             post_data = await publish_post(lemmy, post)
             await pin_post(lemmy, post_data.post_view.post.id, True)
         post_deduper.add_discussion(monday)
-    # don't go to sleep until lineup task is complete
-    if lineup_task is not None:
-        await lineup_task
+    # don't go to sleep until lineup tasks are complete
+    if lineup_tasks:
+        await asyncio.gather(*lineup_tasks)
     print("lfcbot going to sleep")
 
 

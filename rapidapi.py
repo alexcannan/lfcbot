@@ -108,11 +108,15 @@ class Player(BaseModel):
     grid: Optional[str]
 
     @property
-    def grid_row(self) -> int:
+    def grid_row(self) -> Optional[int]:
+        if self.grid is None:
+            return None
         return int(self.grid.split(":")[0])
 
     @property
-    def grid_col(self) -> int:
+    def grid_col(self) -> Optional[int]:
+        if self.grid is None:
+            return None
         return int(self.grid.split(":")[1])
 
 
@@ -136,9 +140,9 @@ class Lineup(BaseModel):
     def format_lineup(self) -> str:
         """ formats lineup into a string """
         starting_strs: List[str] = []
-        for grid_row in sorted(list(set([squad.player.grid_row for squad in self.startXI])), reverse=True):
+        for grid_row in sorted(list(set([squad.player.grid_row or -1 for squad in self.startXI])), reverse=True):
             players = [squad.player for squad in self.startXI if squad.player.grid_row == grid_row]
-            players.sort(key=lambda player: player.grid_col)
+            players.sort(key=lambda player: player.grid_col or -1)
             starting_strs.append(",  ".join([f"{player.name}" for player in players]) + ";")
         max_length = max(len(line) for line in starting_strs)
         starting_strs = [line.center(max_length) for line in starting_strs]
