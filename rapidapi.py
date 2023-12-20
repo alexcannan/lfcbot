@@ -242,10 +242,21 @@ async def get_lineups(fixture_id: int) -> LineupResponse:
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    lineup_parser = subparsers.add_parser("lineup")
+    lineup_parser.add_argument("fixture_id", type=int)
+    lineup_parser.add_argument("team_id", type=int)
+
+    args = parser.parse_args()
     async def main():
-        with open("lfclineup.json", "r") as f:
-            _lineup = LineupResponse.model_validate_json(f.read())
-        # lineup = await get_lineup(1126416)
-        # import pdb; pdb.set_trace()
+        if args.command == "lineup":
+            # with open("lfclineup.json", "r") as f:
+            #     _lineup = LineupResponse.model_validate_json(f.read())
+            lineups = await get_lineups(args.fixture_id)
+            lineup = lineups.get_team_lineup(args.team_id)
+            print(lineup.format_lineup())
     import asyncio
     asyncio.run(main())

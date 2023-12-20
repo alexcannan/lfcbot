@@ -118,6 +118,7 @@ async def main():
                 # spawn task to update post with lineups 30m before kickoff
                 kickoff = fixture.fixture.date.replace(tzinfo=timezone.utc)
                 async def update_task():
+                    print("waiting for lineup update")
                     await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - 30*60)  # wait until 30m before kickoff
                     lineup_response = await get_lineups(fixture.fixture.id)
                     lfc_lineup = lineup_response.get_team_lineup(RAPID_API_TEAM_ID)
@@ -155,6 +156,7 @@ async def main():
             post_data = await publish_post(lemmy, post)
             await pin_post(lemmy, post_data.post_view.post.id, True)
         post_deduper.add_discussion(monday)
+    # don't go to sleep until lineup task is complete
     if lineup_task is not None:
         await lineup_task
     print("lfcbot going to sleep")
