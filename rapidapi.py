@@ -145,10 +145,10 @@ class Lineup(BaseModel):
             players.sort(key=lambda player: player.grid_col or -1)
             starting_strs.append(",  ".join([f"{player.name}" for player in players]) + ";")
         max_length = max(len(line) for line in starting_strs)
-        starting_strs = [line.center(max_length) for line in starting_strs]
+        starting_strs = [line.center(max_length).rstrip() for line in starting_strs]
         starting_str = "\n\n".join(starting_strs)
         bench_str = "Bench: " + ", ".join([f"{squad.player.name}" for squad in self.substitutes])
-        return "\n\n".join([starting_str, bench_str])
+        return "```\n" + "\n\n".join([starting_str, bench_str]) + "\n```"
 
 
 class LineupResponse(BaseModel):
