@@ -115,11 +115,11 @@ async def main():
                 async with LemmyAuthWrapper() as lemmy:
                     post_response: PostResponse = await publish_post(lemmy, post)
                 post_deduper.add_fixture(fixture.fixture.id)
-                # spawn task to update post with lineups 30m before kickoff
+                # spawn task to update post with lineups 20m before kickoff
                 kickoff = fixture.fixture.date.replace(tzinfo=timezone.utc)
                 async def update_task():
                     print("waiting for lineup update")
-                    await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - 30*60)  # wait until 30m before kickoff
+                    await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - 20*60)  # wait until 20m before kickoff
                     lineup_response = await get_lineups(fixture.fixture.id)
                     lfc_lineup = lineup_response.get_team_lineup(RAPID_API_TEAM_ID)
                     async with LemmyAuthWrapper() as lemmy:

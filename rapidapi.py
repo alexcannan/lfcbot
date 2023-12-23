@@ -83,7 +83,7 @@ class FixtureResponse(BaseModel):
             f"Date: {self.fixture.date.strftime('%b %d, %Y')}",
             f"Kickoff time: {self.fixture.date.strftime('%H:%M %Z')}",
             "## Lineups",
-            "Check back 30m before kickoff" if not lineup else lineup,
+            "Check back 20m before kickoff" if not lineup else lineup,
             "## Recent Form",
             f"#### {self.teams.home.name}\n\n{home_team_form}" if home_team_form else "",
             f"#### {self.teams.away.name}\n\n{away_team_form}" if away_team_form else "",
