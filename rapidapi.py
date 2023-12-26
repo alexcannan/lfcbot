@@ -11,6 +11,7 @@ from pydantic import BaseModel, HttpUrl
 
 
 RAPID_API_KEY = os.environ["RAPID_API_KEY"]
+LINEUP_MINUTES_BEFORE_KICKOFF = 15  # try and get lineup this many minutes before kickoff
 
 
 class Status(BaseModel):
@@ -83,7 +84,7 @@ class FixtureResponse(BaseModel):
             f"Date: {self.fixture.date.strftime('%b %d, %Y')}",
             f"Kickoff time: {self.fixture.date.strftime('%H:%M %Z')}",
             "## Lineups",
-            "Check back 20m before kickoff" if not lineup else lineup,
+            f"Check back {LINEUP_MINUTES_BEFORE_KICKOFF}m before kickoff" if not lineup else lineup,
             "## Recent Form",
             f"#### {self.teams.home.name}\n\n{home_team_form}" if home_team_form else "",
             f"#### {self.teams.away.name}\n\n{away_team_form}" if away_team_form else "",
@@ -143,7 +144,7 @@ class Lineup(BaseModel):
         for grid_row in sorted(list(set([squad.player.grid_row or -1 for squad in self.startXI])), reverse=True):
             players = [squad.player for squad in self.startXI if squad.player.grid_row == grid_row]
             players.sort(key=lambda player: player.grid_col or -1)
-            starting_strs.append(",  ".join([f"{player.name}" for player in players]) + ";")
+            starting_strs.append(",  ".join([f"{player.name}" for player in players]))
         max_length = max(len(line) for line in starting_strs)
         starting_strs = [line.center(max_length).rstrip() for line in starting_strs]
         starting_str = "\n\n".join(starting_strs)

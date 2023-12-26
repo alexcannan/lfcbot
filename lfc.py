@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from lemmybot import LemmyAuthWrapper
 from lemmybot.post import Post, PostEdit, PostResponse, edit_post, publish_post, pin_post, get_new_posts
-from rapidapi import FixtureResponse, get_lineups, get_next_fixtures, get_previous_fixtures, format_form
+from rapidapi import FixtureResponse, get_lineups, get_next_fixtures, get_previous_fixtures, format_form, LINEUP_MINUTES_BEFORE_KICKOFF
 
 
 LFC_COMMUNITY_ID = 11742  # https://programming.dev/c/liverpoolfc@lemmy.world
@@ -115,11 +115,11 @@ async def main():
                 async with LemmyAuthWrapper() as lemmy:
                     post_response: PostResponse = await publish_post(lemmy, post)
                 post_deduper.add_fixture(fixture.fixture.id)
-                # spawn task to update post with lineups 20m before kickoff
+                # spawn task to update post with lineups until some time before kickoff
                 kickoff = fixture.fixture.date.replace(tzinfo=timezone.utc)
                 async def update_task():
                     print("waiting for lineup update")
-                    await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - 20*60)  # wait until 20m before kickoff
+                    await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - LINEUP_MINUTES_BEFORE_KICKOFF*60)
                     lineup_response = await get_lineups(fixture.fixture.id)
                     lfc_lineup = lineup_response.get_team_lineup(RAPID_API_TEAM_ID)
                     async with LemmyAuthWrapper() as lemmy:
