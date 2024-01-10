@@ -120,18 +120,24 @@ async def main():
                 async def update_task():
                     print("waiting for lineup update")
                     await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - LINEUP_MINUTES_BEFORE_KICKOFF*60)
-                    lineup_response = await get_lineups(fixture.fixture.id)
-                    lfc_lineup = lineup_response.get_team_lineup(RAPID_API_TEAM_ID)
-                    async with LemmyAuthWrapper() as lemmy:
-                        post_edit = PostEdit(
-                            post_id=post_response.post_view.post.id,
-                            body=fixture.format_body(
-                                home_team_form,
-                                away_team_form,
-                                lfc_lineup.format_lineup()
-                            )+"\n\n~posted~ ~by~ ~lfcbot~"
-                        )
-                        await edit_post(lemmy, post_edit)
+                    for i in range(5):
+                        lineup_response = await get_lineups(fixture.fixture.id)
+                        try:
+                            lfc_lineup = lineup_response.get_team_lineup(RAPID_API_TEAM_ID)
+                        except ValueError:
+                            await asyncio.sleep(120)  # wait 2 minutes and try again
+                            continue
+                        async with LemmyAuthWrapper() as lemmy:
+                            post_edit = PostEdit(
+                                post_id=post_response.post_view.post.id,
+                                body=fixture.format_body(
+                                    home_team_form,
+                                    away_team_form,
+                                    lfc_lineup.format_lineup()
+                                )+"\n\n~posted~ ~by~ ~lfcbot~"
+                            )
+                            await edit_post(lemmy, post_edit)
+                            return
                 lineup_tasks.append(asyncio.create_task(update_task()))
     # if we haven't posted monday's discussion thread yet, make a post
     monday = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=datetime.utcnow().weekday())
