@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
+from loguru import logger
 from pydantic import BaseModel
 
 from lemmybot import LemmyAuthWrapper
@@ -72,7 +73,7 @@ class PostDeduper:
 
 
 async def main():
-    print("lfcbot waking up")
+    logger.info("lfcbot waking up")
     post_deduper = PostDeduper()
 
     fixtures_from_today = Path("fixtures_from_today.json")
@@ -80,7 +81,7 @@ async def main():
         fixture_cache = FixtureCache.model_validate_json(fixtures_from_today.read_text())
         fixtures = fixture_cache.fixtures
         if fixture_cache.date_fetched.date() != datetime.utcnow().date():
-            print("fixture cache out of date, fetching new ones")
+            logger.info("fixture cache out of date, fetching new ones")
             fixtures = await get_next_fixtures(RAPID_API_TEAM_ID)
             fixture_cache = FixtureCache(fixtures=fixtures, date_fetched=datetime.utcnow())
             fixtures_from_today.write_text(fixture_cache.model_dump_json())
@@ -95,7 +96,7 @@ async def main():
         if fixture.fixture.date.replace(tzinfo=timezone.utc) \
            < datetime.utcnow().replace(tzinfo=timezone.utc) + timedelta(hours=4):
             if not post_deduper.fixture_published(fixture.fixture.id):
-                print(f"making post for {fixture=}")
+                logger.info(f"making post for {fixture=}")
                 # get form of teams
                 home_team_form: str | None = None
                 away_team_form: str | None = None
@@ -105,7 +106,7 @@ async def main():
                     away_previous_fixtures = await get_previous_fixtures(fixture.teams.away.id)
                     away_team_form = format_form(away_previous_fixtures, fixture.teams.away.id)
                 except Exception as e:
-                    print(f"error getting form: [{e.__class__.__name__}] {e}")
+                    logger.info(f"error getting form: [{e.__class__.__name__}] {e}")
                 # make post
                 post = Post(
                     name=fixture.format_title(),
@@ -118,13 +119,16 @@ async def main():
                 # spawn task to update post with lineups until some time before kickoff
                 kickoff = fixture.fixture.date.replace(tzinfo=timezone.utc)
                 async def update_task():
-                    print("waiting for lineup update")
+                    logger.info("waiting for lineup update")
                     await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - LINEUP_MINUTES_BEFORE_KICKOFF*60)
-                    for i in range(5):
+                    logger.debug("proceeding with lineup grab")
+                    for _ in range(5):
                         lineup_response = await get_lineups(fixture.fixture.id)
                         try:
                             lfc_lineup = lineup_response.get_team_lineup(RAPID_API_TEAM_ID)
+                            logger.debug(f"got lineup: {lfc_lineup=}")
                         except ValueError:
+                            logger.debug("no lineup yet, trying again in 2 minutes")
                             await asyncio.sleep(120)  # wait 2 minutes and try again
                             continue
                         async with LemmyAuthWrapper() as lemmy:
@@ -136,13 +140,14 @@ async def main():
                                     lfc_lineup.format_lineup()
                                 )+"\n\n~posted~ ~by~ ~lfcbot~"
                             )
+                            logger.debug(f"updating post: {post_edit=}")
                             await edit_post(lemmy, post_edit)
                             return
                 lineup_tasks.append(asyncio.create_task(update_task()))
     # if we haven't posted monday's discussion thread yet, make a post
     monday = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=datetime.utcnow().weekday())
     if not post_deduper.discussion_published(monday):
-        print(f"making discussion post for {monday}")
+        logger.info(f"making discussion post for {monday}")
         discussion_title = "Weekly Discussion Thread"
         # make post
         post = Post(
@@ -164,8 +169,9 @@ async def main():
         post_deduper.add_discussion(monday)
     # don't go to sleep until lineup tasks are complete
     if lineup_tasks:
+        logger.debug(f"waiting for {len(lineup_tasks)} lineup tasks to complete")
         await asyncio.gather(*lineup_tasks)
-    print("lfcbot going to sleep")
+    logger.info("lfcbot going to sleep")
 
 
 if __name__ == "__main__":
