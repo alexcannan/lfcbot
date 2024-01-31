@@ -63,6 +63,24 @@ async def publish_post(law: LemmyAuthWrapper, post: Post) -> PostResponse:
         return PostResponse.model_validate(await resp.json())
 
 
+async def get_post(law: LemmyAuthWrapper, post_id: int) -> PostResponse:
+    """
+    get a post from lemmy
+    """
+    url = f"{LEMMY_API_ROOT}/post"
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": f"Bearer {law.token}",
+    }
+    query = {
+        "id": post_id,
+    }
+    async with law.session.get(url, headers=headers, params=query) as resp:
+        resp.raise_for_status()
+        return PostResponse.model_validate(await resp.json())
+
+
 async def edit_post(law: LemmyAuthWrapper, post_edit: PostEdit) -> PostResponse:
     """
     update a post on lemmy
