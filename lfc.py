@@ -76,8 +76,8 @@ async def update_task(fixture_id: int,
                       post_id: int,
                       kickoff: datetime,
                       fixture: FixtureResponse,
-                      home_team_form: str | None,
-                      away_team_form: str | None,
+                      home_team_form: Optional[str],
+                      away_team_form: Optional[str],
                       ) -> None:
     """ trigger a task to update the post with the lineup near kickoff """
     logger.info("waiting for lineup update")
@@ -132,8 +132,8 @@ async def main():
             if not post_deduper.fixture_published(fixture.fixture.id):
                 logger.info(f"making post for {fixture=}")
                 # get form of teams
-                home_team_form: str | None = None
-                away_team_form: str | None = None
+                home_team_form: Optional[str] = None
+                away_team_form: Optional[str] = None
                 try:
                     home_previous_fixtures = await get_previous_fixtures(fixture.teams.home.id)
                     home_team_form = format_form(home_previous_fixtures, fixture.teams.home.id)
