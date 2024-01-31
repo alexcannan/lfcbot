@@ -72,6 +72,40 @@ class PostDeduper:
         self._save()
 
 
+async def update_task(fixture_id: int,
+                      post_id: int,
+                      kickoff: datetime,
+                      fixture: FixtureResponse,
+                      home_team_form: str | None,
+                      away_team_form: str | None,
+                      ) -> None:
+    """ trigger a task to update the post with the lineup near kickoff """
+    logger.info("waiting for lineup update")
+    await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - LINEUP_MINUTES_BEFORE_KICKOFF*60)
+    logger.debug("proceeding with lineup grab")
+    for _ in range(5):
+        lineup_response = await get_lineups(fixture_id)
+        try:
+            lfc_lineup = lineup_response.get_team_lineup(RAPID_API_TEAM_ID)
+            logger.debug(f"got lineup: {lfc_lineup=}")
+        except ValueError:
+            logger.debug("no lineup yet, trying again in 2 minutes")
+            await asyncio.sleep(120)  # wait 2 minutes and try again
+            continue
+        async with LemmyAuthWrapper() as lemmy:
+            post_edit = PostEdit(
+                post_id=post_id,
+                body=fixture.format_body(
+                    home_team_form,
+                    away_team_form,
+                    lfc_lineup.format_lineup()
+                )+"\n\n~posted~ ~by~ ~lfcbot~"
+            )
+            logger.debug(f"updating post: {post_edit=}")
+            await edit_post(lemmy, post_edit)
+            return
+
+
 async def main():
     logger.info("lfcbot waking up")
     post_deduper = PostDeduper()
@@ -115,35 +149,24 @@ async def main():
                 )
                 async with LemmyAuthWrapper() as lemmy:
                     post_response: PostResponse = await publish_post(lemmy, post)
+                    match_post = post_response.post_view.post
+                    assert match_post.id is not None
                 post_deduper.add_fixture(fixture.fixture.id)
                 # spawn task to update post with lineups until some time before kickoff
                 kickoff = fixture.fixture.date.replace(tzinfo=timezone.utc)
-                async def update_task():
-                    logger.info("waiting for lineup update")
-                    await asyncio.sleep((kickoff - datetime.utcnow().replace(tzinfo=timezone.utc)).total_seconds() - LINEUP_MINUTES_BEFORE_KICKOFF*60)
-                    logger.debug("proceeding with lineup grab")
-                    for _ in range(5):
-                        lineup_response = await get_lineups(fixture.fixture.id)
-                        try:
-                            lfc_lineup = lineup_response.get_team_lineup(RAPID_API_TEAM_ID)
-                            logger.debug(f"got lineup: {lfc_lineup=}")
-                        except ValueError:
-                            logger.debug("no lineup yet, trying again in 2 minutes")
-                            await asyncio.sleep(120)  # wait 2 minutes and try again
-                            continue
-                        async with LemmyAuthWrapper() as lemmy:
-                            post_edit = PostEdit(
-                                post_id=post_response.post_view.post.id,
-                                body=fixture.format_body(
-                                    home_team_form,
-                                    away_team_form,
-                                    lfc_lineup.format_lineup()
-                                )+"\n\n~posted~ ~by~ ~lfcbot~"
-                            )
-                            logger.debug(f"updating post: {post_edit=}")
-                            await edit_post(lemmy, post_edit)
-                            return
-                lineup_tasks.append(asyncio.create_task(update_task()))
+
+                lineup_tasks.append(
+                    asyncio.create_task(
+                        update_task(
+                            fixture_id=fixture.fixture.id,
+                            post_id=match_post.id,
+                            kickoff=kickoff,
+                            fixture=fixture,
+                            home_team_form=home_team_form,
+                            away_team_form=away_team_form,
+                        )
+                    )
+                )
     # if we haven't posted monday's discussion thread yet, make a post
     monday = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=datetime.utcnow().weekday())
     if not post_deduper.discussion_published(monday):
