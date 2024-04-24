@@ -168,13 +168,13 @@ async def main():
                     )
                 )
     # if we haven't posted monday's discussion thread yet, make a post
-    monday = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=datetime.utcnow().weekday())
-    if not post_deduper.discussion_published(monday):
-        logger.info(f"making discussion post for {monday}")
-        discussion_title = "Weekly Discussion Thread"
+    first_of_month = datetime.utcnow().replace(tzinfo=timezone.utc).replace(day=1)
+    if not post_deduper.discussion_published(first_of_month):
+        logger.info(f"making discussion post for {first_of_month}")
+        discussion_title = "Monthly Discussion Thread"
         # make post
         post = Post(
-            name=f"{discussion_title} - {monday.strftime('%b %d, %Y')}",
+            name=f"{discussion_title} - {first_of_month.strftime('%b %d, %Y')}",
             community_id=LFC_COMMUNITY_ID,
         body="What's on your mind?\n\n~posted~ ~by~ ~lfcbot~",
         )
@@ -189,7 +189,7 @@ async def main():
             # post and pin new discussion post
             post_data = await publish_post(lemmy, post)
             await pin_post(lemmy, post_data.post_view.post.id, True)
-        post_deduper.add_discussion(monday)
+        post_deduper.add_discussion(first_of_month)
     # don't go to sleep until lineup tasks are complete
     if lineup_tasks:
         logger.debug(f"waiting for {len(lineup_tasks)} lineup tasks to complete")
