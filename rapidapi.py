@@ -102,7 +102,7 @@ class FixtureResponse(BaseModel):
 
 
 class Player(BaseModel):
-    id: int
+    id: Optional[int]
     name: str
     number: int
     pos: Optional[str]
