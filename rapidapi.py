@@ -20,7 +20,7 @@ class Status(BaseModel):
 
 
 class Venue(BaseModel):
-    city: str
+    city: str | None
     name: str
 
 
